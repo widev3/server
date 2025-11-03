@@ -1,0 +1,6 @@
+Flask
+astropy[all]
+gpiozero
+smbus2
+RPi.GPIO
+lgpio
