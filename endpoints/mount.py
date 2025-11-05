@@ -21,7 +21,6 @@ def is_float(value: str) -> bool:
         return False
 
 
-# Antonio - 20251105. Setta il tipo di Mount
 @mount_bp.route("/config/mounttype", methods=["POST"])
 def set_mount_type():
     global mount, MOUNT_TYPE
