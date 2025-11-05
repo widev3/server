@@ -2,15 +2,15 @@ import math
 import threading
 from pathlib import Path
 from astropy import units
-from drivers.WOWMount import WOWMount
+from drivers.RadiotelescopeMount import WOWMount
 from flask import request, jsonify, Blueprint
 from astropy.coordinates import EarthLocation
-from drivers.MonitorMount import MonitorMount  # aggiunto
+from drivers.MonitorMount import MonitorMount
 
 mount_bp = Blueprint(Path(__file__).stem, __name__)
 
-#global mount
-#mount = WOWMount()
+# global mount
+# mount = WOWMount()
 
 
 def is_float(value: str) -> bool:
@@ -20,7 +20,8 @@ def is_float(value: str) -> bool:
     except:
         return False
 
-#Antonio - 20251105. Setta il tipo di Mount
+
+# Antonio - 20251105. Setta il tipo di Mount
 @mount_bp.route("/config/mounttype", methods=["POST"])
 def set_mount_type():
     global mount, MOUNT_TYPE
@@ -39,12 +40,15 @@ def set_mount_type():
     MOUNT_TYPE = mtype
     if mtype == "monitor":
         from drivers.MonitorMount import MonitorMount
+
         mount = MonitorMount()
     else:
-        from drivers.WOWMount import WOWMount
+        from drivers.RadiotelescopeMount import WOWMount
+
         mount = WOWMount()
 
     return jsonify({"message": f"mount type switched to {mtype}"}), 200
+
 
 @mount_bp.route("/location", methods=["POST"])
 def mount_location():

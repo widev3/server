@@ -2,8 +2,9 @@ import sys
 
 sys.dont_write_bytecode = True
 
-from mount import mount_bp
-from session import session_bp
+from endpoints.mount import mount_bp
+from endpoints.session import session_bp
+from endpoints.hardware import hardware_bp
 from SingletonSID import SingletonSID
 from flask import Flask, request, jsonify
 
@@ -11,6 +12,7 @@ app = Flask(__name__)
 
 app.register_blueprint(session_bp, url_prefix="/session")
 app.register_blueprint(mount_bp, url_prefix="/mount")
+app.register_blueprint(hardware_bp, url_prefix="/hardware")
 
 
 @app.before_request

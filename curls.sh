@@ -1,4 +1,4 @@
-server="192.168.1.196"
+server="192.168.1.55"
 
 # get session_id
 sid="$(curl -X GET http://$server:5000/session/acquire | jq -r '.session_id')"

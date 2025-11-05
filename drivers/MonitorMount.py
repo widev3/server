@@ -1,20 +1,17 @@
-#!/usr/bin/env python3
+import time
 import socket
 import threading
-import time
-from flask import Flask, request, jsonify, render_template_string
+import drivers.is_rpi
 from classes.Mount import Mount
-import drivers.hw
+from flask import Flask, request, jsonify, render_template_string
 
-if drivers.hw.is_rpi():
+if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
     from adafruit_pca9685 import PCA9685
     from board import SCL, SDA
     import busio
 
-# ====================================================
-# SINGLETON — manages the hardware only once
-# ====================================================
+
 class Singleton:
     _instance = None
 
@@ -30,7 +27,7 @@ class Singleton:
 
         self.pca = None
 
-        if drivers.hw.is_rpi():
+        if drivers.is_rpi.is_rpi():
             try:
                 GPIO.setmode(GPIO.BCM)
                 GPIO.setwarnings(False)
@@ -44,9 +41,6 @@ class Singleton:
             print("Running on non-Raspberry environment (mock mode).")
 
 
-# ====================================================
-# MonitorMount — server + servo control
-# ====================================================
 class MonitorMount(Mount):
     def __init__(self):
         super().__init__()
@@ -173,11 +167,13 @@ class MonitorMount(Mount):
         @app.route("/status", methods=["GET"])
         def status():
             try:
-                return jsonify({
-                    "running": self.get_running(),
-                    "position": self.get_position(),
-                    "channels": self.CHANNELS
-                })
+                return jsonify(
+                    {
+                        "running": self.get_running(),
+                        "position": self.get_position(),
+                        "channels": self.CHANNELS,
+                    }
+                )
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -197,14 +193,16 @@ class MonitorMount(Mount):
             try:
                 host = socket.gethostname()
                 ip = socket.gethostbyname(host)
-                return jsonify({
-                    "ok": True,
-                    "device": host,
-                    "ip": ip,
-                    "frequency": self.FREQUENCY_HZ,
-                    "channels": self.CHANNELS,
-                    "pca_initialized": self.pca is not None
-                })
+                return jsonify(
+                    {
+                        "ok": True,
+                        "device": host,
+                        "ip": ip,
+                        "frequency": self.FREQUENCY_HZ,
+                        "channels": self.CHANNELS,
+                        "pca_initialized": self.pca is not None,
+                    }
+                )
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -262,10 +260,9 @@ class MonitorMount(Mount):
     # Server start
     # ====================================================
     def run_server(self):
-        thread = threading.Thread(target=self.app.run, kwargs={
-            "host": self.HOST,
-            "port": self.PORT
-        })
+        thread = threading.Thread(
+            target=self.app.run, kwargs={"host": self.HOST, "port": self.PORT}
+        )
         thread.daemon = True
         thread.start()
         print(f"Server started on http://{self.HOST}:{self.PORT}")

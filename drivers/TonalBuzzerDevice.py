@@ -1,4 +1,4 @@
-import drivers.hw
+import drivers.is_rpi
 from time import sleep
 from gpiozero import TonalBuzzer
 from classes.Device import Device
@@ -18,7 +18,7 @@ class Singleton:
 
         self._initialized = True
 
-        if drivers.hw.is_rpi():
+        if drivers.is_rpi.is_rpi():
             TBPIN = 4
             self.tonal_buzzer = TonalBuzzer(TBPIN)
 
@@ -28,7 +28,7 @@ class TonalBuzzerDevice(Device):
         pass
 
     def write(self, tune):
-        if drivers.hw.is_rpi():
+        if drivers.is_rpi.is_rpi():
             for note, duration in tune:
                 Singleton().tonal_buzzer.play(note)
                 sleep(duration)

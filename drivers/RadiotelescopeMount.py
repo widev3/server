@@ -2,9 +2,9 @@ import math
 import smbus2
 import numpy as np
 from time import sleep
-import drivers.hw
+import drivers.is_rpi
 
-if drivers.hw.is_rpi():
+if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
 
 from astropy import units
@@ -34,7 +34,7 @@ class Singleton:
 
         self._initialized = True
 
-        if drivers.hw.is_rpi():
+        if drivers.is_rpi.is_rpi():
             self.MPU6050_ADDR = 0x68
             self.PWR_MGMT_1 = 0x6B
             self.ACCEL_XOUT_H = 0x3B
@@ -127,44 +127,44 @@ class WOWMount(Mount):
             self.__mpu6050_data()
 
     def __get_az(self) -> float:
-        return Singleton().rotary_encoder.steps if drivers.hw.is_rpi() else None
+        return Singleton().rotary_encoder.steps if drivers.is_rpi.is_rpi() else None
 
     def __get_alt(self) -> float:
-        return self.__mpu6050_data()[0] if drivers.hw.is_rpi() else None
+        return self.__mpu6050_data()[0] if drivers.is_rpi.is_rpi() else None
 
     def __run(self, az: float, alt: float) -> None:
         def forward_azimuth(speed):
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN1, GPIO.HIGH)
                 GPIO.output(Singleton().IN2, GPIO.LOW)
                 Singleton().pwm_a.value = speed
 
         def backward_azimuth(speed):
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN1, GPIO.LOW)
                 GPIO.output(Singleton().IN2, GPIO.HIGH)
                 Singleton().pwm_a.value = speed
 
         def forward_altitude(speed):
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN3, GPIO.HIGH)
                 GPIO.output(Singleton().IN4, GPIO.LOW)
                 Singleton().pwm_b.value = speed
 
         def backward_altitude(speed):
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN3, GPIO.LOW)
                 GPIO.output(Singleton().IN4, GPIO.HIGH)
                 Singleton().pwm_b.value = speed
 
         def stop_azimuth():
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN1, GPIO.LOW)
                 GPIO.output(Singleton().IN2, GPIO.LOW)
                 Singleton().pwm_a.value = 0
 
         def stop_altitude():
-            if drivers.hw.is_rpi():
+            if drivers.is_rpi.is_rpi():
                 GPIO.output(Singleton().IN3, GPIO.LOW)
                 GPIO.output(Singleton().IN4, GPIO.LOW)
                 Singleton().pwm_b.value = 0
