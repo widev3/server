@@ -36,11 +36,11 @@ class Singleton:
                 i2c = busio.I2C(SCL, SDA)
                 self.pca = PCA9685(i2c)
                 self.pca.frequency = 100
-                print("✅ PCA9685 initialized by Singleton @100Hz")
+                print("PCA9685 initialized by Singleton @100Hz")
             except Exception as e:
-                print("⚠️ Error initializing PCA9685 in Singleton:", e)
+                print("Error initializing PCA9685 in Singleton:", e)
         else:
-            print("ℹ️ Running on non-Raspberry environment (mock mode).")
+            print("ℹRunning on non-Raspberry environment (mock mode).")
 
 
 # ====================================================
@@ -70,7 +70,7 @@ class MonitorMount:
         if self.pca:
             print("✅ PCA9685 ready in MonitorMount.")
         else:
-            print("⚠️ PCA9685 unavailable (mock mode).")
+            print("PCA9685 unavailable (mock mode).")
 
         # =============================
         # Registra le rotte API
