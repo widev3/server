@@ -11,7 +11,7 @@ import busio
 #adafruit-circuitpython-pca9685
 #adafruit-blinka
 
-class W3Mount:
+class MonitorMount:
     def __init__(self, freq_hz=50, channels=[0, 1], host="0.0.0.0", port=5000):
         # =============================
         # Configurazione base
@@ -223,7 +223,7 @@ class W3Mount:
 # Avvio diretto
 # ====================================================
 if __name__ == "__main__":
-    mount = W3Mount()
+    mount = MonitorMount()
     mount.run_server()
     while True:
         time.sleep(1)
