@@ -3,6 +3,7 @@ import socket
 import threading
 import time
 from flask import Flask, request, jsonify, render_template_string
+from classes.Mount import Mount
 import drivers.hw
 
 if drivers.hw.is_rpi():
@@ -40,45 +41,41 @@ class Singleton:
             except Exception as e:
                 print("Error initializing PCA9685 in Singleton:", e)
         else:
-            print("ℹRunning on non-Raspberry environment (mock mode).")
+            print("Running on non-Raspberry environment (mock mode).")
 
 
 # ====================================================
-# 🛰️ MONITORMOUNT — server + controlli servo
+# MonitorMount — server + servo control
 # ====================================================
-class MonitorMount:
+class MonitorMount(Mount):
     def __init__(self):
-        freq_hz = 100  # Portato a 100
+        super().__init__()
 
-        # =============================
-        # Configurazione base
-        # =============================
+        freq_hz = 100
+
+        # Basic configuration
         self.FREQUENCY_HZ = freq_hz
         self.PERIOD_US = 1_000_000 / freq_hz
         self.CHANNELS = [0, 1]
         self.HOST = "0.0.0.0"
         self.PORT = 5000
         self.app = Flask(__name__)
-        self.running = False
+        self.__running = False
 
-        # =============================
-        # PCA9685 tramite Singleton
-        # =============================
+        # PCA9685 via Singleton
         self.hw = Singleton()
         self.pca = self.hw.pca
 
         if self.pca:
-            print("✅ PCA9685 ready in MonitorMount.")
+            print("PCA9685 ready in MonitorMount.")
         else:
             print("PCA9685 unavailable (mock mode).")
 
-        # =============================
-        # Registra le rotte API
-        # =============================
+        # Register API routes
         self.register_routes()
 
     # ====================================================
-    # 🔹 Utility
+    # Utility
     # ====================================================
     def move_servo(self, channel, angle):
         """Moves a servo with linear conversion 0–180°"""
@@ -86,18 +83,43 @@ class MonitorMount:
             if self.pca is None:
                 return False, "PCA9685 not initialized"
 
-            # Range for RDS51160
-            pulse_min, pulse_max = 500, 2500  # µs
+            pulse_min, pulse_max = 500, 2500  # microseconds
             pulse_us = pulse_min + (pulse_max - pulse_min) * (angle / 180)
             duty = int(pulse_us / self.PERIOD_US * 65535)
             self.pca.channels[channel].duty_cycle = duty
-            print(f"[SERVO {channel}] → {angle:.2f}° ({pulse_us:.1f} µs)")
+            print(f"[SERVO {channel}] angle={angle:.2f} ({pulse_us:.1f} µs)")
             return True, None
         except Exception as e:
             return False, str(e)
 
+    def stop(self):
+        """Stops all servos"""
+        try:
+            if self.pca:
+                for ch in self.CHANNELS:
+                    self.pca.channels[ch].duty_cycle = 0
+            self.__running = False
+            print("Servos stopped.")
+        except Exception as e:
+            print("Error stopping servos:", e)
+
+    def get_position(self):
+        """Returns the current PWM duty (simulated position)"""
+        if not self.pca:
+            return None
+        try:
+            positions = {ch: self.pca.channels[ch].duty_cycle for ch in self.CHANNELS}
+            return positions
+        except Exception as e:
+            print("Error reading servo positions:", e)
+            return None
+
+    def get_running(self):
+        """Returns True if the mount is running"""
+        return self.__running
+
     # ====================================================
-    # 🔹 ENDPOINTS API
+    # API ROUTES
     # ====================================================
     def register_routes(self):
         app = self.app
@@ -111,7 +133,7 @@ class MonitorMount:
 
         @app.route("/ping")
         def ping():
-            return jsonify({"ok": True, "message": "Pong"})
+            return jsonify({"ok": True, "message": "pong"})
 
         @app.route("/move", methods=["GET", "POST"])
         def move():
@@ -121,6 +143,7 @@ class MonitorMount:
                 ok, err = self.move_servo(ch, angle)
                 if not ok:
                     return jsonify({"ok": False, "error": err}), 400
+                self.__running = True
                 return jsonify({"ok": True, "ch": ch, "angle": angle})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 400
@@ -133,36 +156,30 @@ class MonitorMount:
                 duty = int(pulse / self.PERIOD_US * 65535)
                 if self.pca:
                     self.pca.channels[ch].duty_cycle = duty
-                    print(f"[SERVO {ch}] → direct impulse {pulse} µs")
+                    print(f"[SERVO {ch}] direct impulse {pulse} µs")
+                self.__running = True
                 return jsonify({"ok": True, "ch": ch, "pulse": pulse})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 400
 
-        @app.route("/move/test", methods=["POST"])
-        def move_test():
-            try:
-                for angle in range(0, 181, 30):
-                    for ch in self.CHANNELS:
-                        self.move_servo(ch, angle)
-                    time.sleep(0.5)
-                return jsonify({"ok": True, "message": "Test completed"})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
         @app.route("/stop", methods=["POST"])
-        def stop():
+        def stop_route():
             try:
-                if self.pca:
-                    for ch in self.CHANNELS:
-                        self.pca.channels[ch].duty_cycle = 0
-                print("Servos stopped.")
+                self.stop()
                 return jsonify({"ok": True, "message": "Servos stopped"})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 400
 
-        @app.route("/channels")
-        def channels():
-            return jsonify({"ok": True, "channels": self.CHANNELS})
+        @app.route("/status", methods=["GET"])
+        def status():
+            try:
+                return jsonify({
+                    "running": self.get_running(),
+                    "position": self.get_position(),
+                    "channels": self.CHANNELS
+                })
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
 
         @app.route("/setfreq", methods=["POST"])
         def setfreq():
@@ -195,9 +212,8 @@ class MonitorMount:
         def exec_cmd():
             try:
                 cmd = request.args.get("cmd")
-                if cmd == "reset" and self.pca:
-                    for ch in self.CHANNELS:
-                        self.pca.channels[ch].duty_cycle = 0
+                if cmd == "reset":
+                    self.stop()
                     print("Reset executed.")
                     return jsonify({"ok": True, "message": "Reset executed"})
                 return jsonify({"ok": False, "error": "Unknown command"})
@@ -212,7 +228,7 @@ class MonitorMount:
         <!DOCTYPE html>
         <html>
         <head>
-          <title>W3Mount Servo Control</title>
+          <title>MonitorMount Servo Control</title>
           <style>
             body { font-family: sans-serif; background:#111; color:#eee; text-align:center; margin-top:40px; }
             h1 { color:#6cf; }
@@ -256,7 +272,7 @@ class MonitorMount:
 
 
 # ====================================================
-# Direct
+# Direct execution
 # ====================================================
 if __name__ == "__main__":
     mount = MonitorMount()
