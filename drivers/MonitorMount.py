@@ -3,40 +3,78 @@ import socket
 import threading
 import time
 from flask import Flask, request, jsonify, render_template_string
-from adafruit_pca9685 import PCA9685
-from board import SCL, SDA
-import busio
+import drivers.hw
 
-#Flask
-#adafruit-circuitpython-pca9685
-#adafruit-blinka
+if drivers.hw.is_rpi():
+    import RPi.GPIO as GPIO
+    from adafruit_pca9685 import PCA9685
+    from board import SCL, SDA
+    import busio
 
+# ====================================================
+# SINGLETON — manages the hardware only once
+# ====================================================
+class Singleton:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(Singleton, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+        self._initialized = True
+
+        self.pca = None
+
+        if drivers.hw.is_rpi():
+            try:
+                GPIO.setmode(GPIO.BCM)
+                GPIO.setwarnings(False)
+                i2c = busio.I2C(SCL, SDA)
+                self.pca = PCA9685(i2c)
+                self.pca.frequency = 100
+                print("✅ PCA9685 initialized by Singleton @100Hz")
+            except Exception as e:
+                print("⚠️ Error initializing PCA9685 in Singleton:", e)
+        else:
+            print("ℹ️ Running on non-Raspberry environment (mock mode).")
+
+
+# ====================================================
+# 🛰️ MONITORMOUNT — server + controlli servo
+# ====================================================
 class MonitorMount:
-    def __init__(self, freq_hz=50, channels=[0, 1], host="0.0.0.0", port=5000):
+    def __init__(self):
+        freq_hz = 100  # Portato a 100
+
         # =============================
         # Configurazione base
         # =============================
         self.FREQUENCY_HZ = freq_hz
         self.PERIOD_US = 1_000_000 / freq_hz
-        self.CHANNELS = channels
-        self.HOST = host
-        self.PORT = port
+        self.CHANNELS = [0, 1]
+        self.HOST = "0.0.0.0"
+        self.PORT = 5000
         self.app = Flask(__name__)
-        self.pca = None
         self.running = False
 
         # =============================
-        # Inizializza PCA9685
+        # PCA9685 tramite Singleton
         # =============================
-        try:
-            i2c = busio.I2C(SCL, SDA)
-            self.pca = PCA9685(i2c)
-            self.pca.frequency = self.FREQUENCY_HZ
-            print("PCA9685 initialized.")
-        except Exception as e:
-            print("Error during PCA9685 initialization:", e)
+        self.hw = Singleton()
+        self.pca = self.hw.pca
 
+        if self.pca:
+            print("✅ PCA9685 ready in MonitorMount.")
+        else:
+            print("⚠️ PCA9685 unavailable (mock mode).")
+
+        # =============================
         # Registra le rotte API
+        # =============================
         self.register_routes()
 
     # ====================================================
@@ -48,7 +86,7 @@ class MonitorMount:
             if self.pca is None:
                 return False, "PCA9685 not initialized"
 
-            # ✅ Range corretto per RDS51160
+            # Range for RDS51160
             pulse_min, pulse_max = 500, 2500  # µs
             pulse_us = pulse_min + (pulse_max - pulse_min) * (angle / 180)
             duty = int(pulse_us / self.PERIOD_US * 65535)
@@ -73,10 +111,7 @@ class MonitorMount:
 
         @app.route("/ping")
         def ping():
-            try:
-                return jsonify({"ok": True, "message": "Pong"})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
+            return jsonify({"ok": True, "message": "Pong"})
 
         @app.route("/move", methods=["GET", "POST"])
         def move():
@@ -96,8 +131,9 @@ class MonitorMount:
                 ch = int(request.args.get("ch"))
                 pulse = float(request.args.get("pulse"))
                 duty = int(pulse / self.PERIOD_US * 65535)
-                self.pca.channels[ch].duty_cycle = duty
-                print(f"[SERVO {ch}] → direct impulse {pulse} µs")
+                if self.pca:
+                    self.pca.channels[ch].duty_cycle = duty
+                    print(f"[SERVO {ch}] → direct impulse {pulse} µs")
                 return jsonify({"ok": True, "ch": ch, "pulse": pulse})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 400
@@ -116,8 +152,9 @@ class MonitorMount:
         @app.route("/stop", methods=["POST"])
         def stop():
             try:
-                for ch in self.CHANNELS:
-                    self.pca.channels[ch].duty_cycle = 0
+                if self.pca:
+                    for ch in self.CHANNELS:
+                        self.pca.channels[ch].duty_cycle = 0
                 print("Servos stopped.")
                 return jsonify({"ok": True, "message": "Servos stopped"})
             except Exception as e:
@@ -125,16 +162,14 @@ class MonitorMount:
 
         @app.route("/channels")
         def channels():
-            try:
-                return jsonify({"ok": True, "channels": self.CHANNELS})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
+            return jsonify({"ok": True, "channels": self.CHANNELS})
 
         @app.route("/setfreq", methods=["POST"])
         def setfreq():
             try:
                 freq = int(request.args.get("freq"))
-                self.pca.frequency = freq
+                if self.pca:
+                    self.pca.frequency = freq
                 print(f"PWM frequency set to {freq} Hz")
                 return jsonify({"ok": True, "freq": freq})
             except Exception as e:
@@ -150,7 +185,8 @@ class MonitorMount:
                     "device": host,
                     "ip": ip,
                     "frequency": self.FREQUENCY_HZ,
-                    "channels": self.CHANNELS
+                    "channels": self.CHANNELS,
+                    "pca_initialized": self.pca is not None
                 })
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -159,7 +195,7 @@ class MonitorMount:
         def exec_cmd():
             try:
                 cmd = request.args.get("cmd")
-                if cmd == "reset":
+                if cmd == "reset" and self.pca:
                     for ch in self.CHANNELS:
                         self.pca.channels[ch].duty_cycle = 0
                     print("Reset executed.")
@@ -169,7 +205,7 @@ class MonitorMount:
                 return jsonify({"ok": False, "error": str(e)}), 400
 
     # ====================================================
-    # 🖥️ INTERFACCIA HTML BASE
+    # HTML Interface
     # ====================================================
     def html_interface(self):
         return """
@@ -207,7 +243,7 @@ class MonitorMount:
         """
 
     # ====================================================
-    # 🚀 AVVIO SERVER
+    # Server start
     # ====================================================
     def run_server(self):
         thread = threading.Thread(target=self.app.run, kwargs={
@@ -220,7 +256,7 @@ class MonitorMount:
 
 
 # ====================================================
-# Avvio diretto
+# Direct
 # ====================================================
 if __name__ == "__main__":
     mount = MonitorMount()
