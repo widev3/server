@@ -71,7 +71,7 @@ class Singleton:
             )
 
 
-class WOWMount(Mount):
+class RadiotelescopeMount(Mount):
     def __init__(self):
         self.__location = None
         self.__target = None  # it is always in icrs

@@ -2,7 +2,7 @@ import math
 import threading
 from pathlib import Path
 from astropy import units
-from drivers.RadiotelescopeMount import WOWMount
+from drivers.RadiotelescopeMount import RadiotelescopeMount
 from flask import request, jsonify, Blueprint
 from astropy.coordinates import EarthLocation
 from drivers.MonitorMount import MonitorMount
@@ -42,9 +42,9 @@ def set_mount_type():
 
         mount = MonitorMount()
     else:
-        from drivers.RadiotelescopeMount import WOWMount
+        from drivers.RadiotelescopeMount import RadiotelescopeMount
 
-        mount = WOWMount()
+        mount = RadiotelescopeMount()
 
     return jsonify({"message": f"mount type switched to {mtype}"}), 200
 
