@@ -4,7 +4,7 @@ sys.dont_write_bytecode = True
 
 from endpoints.mount import mount_bp
 from endpoints.session import session_bp
-from endpoints.hardware import hardware_bp
+#from endpoints.hardware import hardware_bp
 from endpoints.hwcontroller import hwcontroller_bp
 from SingletonSID import SingletonSID
 from flask import Flask, request, jsonify
