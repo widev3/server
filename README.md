@@ -1,9 +1,13 @@
+# server
+
 ## /session route
 
 The session endpoint is used to acquire or release the session since only one session is allowed at a time.
 
 ### GET /session/acquire
+
 #### response
+
 ```json
 {
      "session_id": session_id
@@ -11,17 +15,21 @@ The session endpoint is used to acquire or release the session since only one se
 ```
 
 #### example
+
 ```bash
 sid="$(curl -X GET http://$server:5000/session/acquire | jq -r '.session_id')"
 echo $sid
 ```
 
 ### GET /session/release
+
 #### response
+
 * `{"message": "OK"}`, 200
 * `{"message": "cannot release an empty session"}`, 403
 
 #### example
+
 ```bash
 curl -X GET http://$server:5000/session/release \
      -H "Authorization: $sid"
@@ -35,7 +43,9 @@ curl -X GET http://$server:5000/session/release \
 The route endpoint is used to move and manage everything related to the mechanics of the mount.
 
 ### POST /mount/location/
+
 #### body
+
 ```json
 {
      "lat": lat,
@@ -45,6 +55,7 @@ The route endpoint is used to move and manage everything related to the mechanic
 ```
 
 #### response
+
 * `{"message": "OK"}`, 200
 * `{"error": "Missing required field lat"}`, 400
 * `{"error": "Missing required field lon"}`, 400
@@ -53,6 +64,7 @@ The route endpoint is used to move and manage everything related to the mechanic
 * `{"error": "Already moving"}`, 403
 
 #### example
+
 ```bash
 curl -X POST http://$server:5000/mount/location \
      -H "Content-Type: application/json" \
@@ -63,7 +75,9 @@ curl -X POST http://$server:5000/mount/location \
 ---
 
 ### POST /mount/target
+
 #### body
+
 ```json
 {
      "ra": ra,
@@ -74,6 +88,7 @@ curl -X POST http://$server:5000/mount/location \
 ```
 
 #### response
+
 * `{"message": "OK", "target": {"ra": ra_value,"dec": dec_value}}`, 200
 * `{"error": "Empty body"}`, 400
 * `{"error": "Missing required field target.dec"}`, 400
@@ -85,6 +100,7 @@ curl -X POST http://$server:5000/mount/location \
 * `{"error": "Already moving"}`, 403
 
 #### example
+
 ```bash
 curl -X POST http://$server:5000/mount/target \
      -H "Content-Type: application/json" \
@@ -95,7 +111,9 @@ curl -X POST http://$server:5000/mount/target \
 ---
 
 ### POST /mount/offset
+
 #### body
+
 ```json
 {
      "absolute":
@@ -111,12 +129,14 @@ curl -X POST http://$server:5000/mount/target \
 ```
 
 #### response
+
 * `{"message": "OK", "offset": {"ra": ra_value,"dec": dec_value}}`, 200
 * `{"error": "Empty body"}`, 400
 * `{"error": "'absolute', 'relative' or 'timedelta'"}`, 400
 * `{"error": "Already moving"}`, 403
 
 #### example
+
 ```bash
 curl -X POST http://$server:5000/mount/offset \
      -H "Content-Type: application/json" \
@@ -127,10 +147,13 @@ curl -X POST http://$server:5000/mount/offset \
 ---
 
 ### GET /mount/run?bh=
+
 #### body
+
 `/mount/run?bh=behaviour`
 
 #### response
+
 * `{"message": "OK"}`, 200
 * `{"error": "Mount location is not set"}`, 400
 * `{"error": "Mount target is not set"}`, 400
@@ -139,6 +162,7 @@ curl -X POST http://$server:5000/mount/offset \
 * `{"error": f"Mount offset must be set when bh is {bh}"}`, 400
 
 #### example
+
 ```bash
 curl -X POST http://$server:5000/mount/run?bh=follow \
      -H "Content-Type: application/json" \
@@ -149,18 +173,23 @@ curl -X POST http://$server:5000/mount/run?bh=follow \
 ---
 
 ### GET /mount/stop
+
 #### response
+
 * `{"message": "OK"}`, 200
 * `{"error": "Already stopped"}`, 403
 
 #### example
+
 ```bash
 curl -X GET http://$server:5000/mount/stop \
      -H "Authorization: $sid"
 ```
 
 ### GET /mount/status
+
 #### response
+
 ```json
 {
      "location":
@@ -185,6 +214,7 @@ curl -X GET http://$server:5000/mount/stop \
 ```
 
 #### example
+
 ```bash
 curl -X GET http://$server:5000/mount/status \
      -H "Authorization: $sid"
@@ -198,4 +228,24 @@ curl -X GET http://$server:5000/mount/status \
 Every API call must pass through a middleware to check the sender's trustworthiness.
 
 #### response
+
 * `{"error": "Unauthorized"}`, 401
+
+## setup
+
+```bash
+python3 -m venv ubu
+source ubu/bin/activate
+pip3 install -r requirements.txt
+```
+
+but in case of errors in `pip3 install -r requirements.txt` you should declare system-site-packages
+
+```bash
+sudo apt install python3-rpi.gpio -y
+sudo pip3 install adafruit-circuitpython-pca9685 --break-system-package
+sudo pip3 install adafruit-blinka --break-system-package
+python3 -m venv ubu --system-site-packages
+source ubu/bin/activate
+pip3 install -r legacy_requirements.txt
+```

@@ -1,8 +1,4 @@
-Flask
-astropy[all]
-gpiozero
-smbus2
+-r legacy_requirements.txt
 RPi.GPIO
-lgpio
 adafruit-circuitpython-pca9685
 adafruit-blinka
