@@ -231,51 +231,40 @@ def mount_stop():
 @mount_bp.route("/status", methods=["GET"])
 def mount_status():
     global mount
-    if mount is None:
+    if not mount:
         return jsonify({"error": "mount not initialized"}), 400
+
+    position = mount.get_position() or (None, None)
+    offset = mount.get_offset() or type("Obj", (), {"ra": None, "dec": None})()
+    target = mount.get_target() or type("Obj", (), {"ra": None, "dec": None})()
+    location = mount.get_location()
 
     return (
         jsonify(
             {
-                "location": mount.get_location(),
+                "location": location,
                 "target": {
                     "ra": (
-                        None
-                        if mount.get_target() is None
-                        else round(mount.get_target().ra.deg, 6)
+                        None if target.ra is None else round(target.ra.deg, 6)
                     ),
                     "dec": (
-                        None
-                        if mount.get_target() is None
-                        else round(mount.get_target().dec.deg, 6)
+                        None if target.dec is None else round(target.dec.deg, 6)
                     ),
                 },
                 "offset": {
                     "ra": (
-                        None
-                        if mount.get_offset() is None
-                        else round(mount.get_offset().ra.deg, 6)
+                        None if offset.ra is None else round(offset.ra.deg, 6)
                     ),
                     "dec": (
-                        None
-                        if mount.get_offset() is None
-                        else round(mount.get_offset().dec.deg, 6)
+                        None if offset.dec is None else round(offset.dec.deg, 6)
                     ),
                 },
                 "position": {
-                    "ra": (
-                        None
-                        if mount.get_position()[0] is None
-                        else round(mount.get_position()[0], 6)
-                    ),
-                    "dec": (
-                        None
-                        if mount.get_position()[1] is None
-                        else round(mount.get_position()[1], 6)
-                    ),
+                    "ra": None if position[0] is None else round(position[0], 6),
+                    "dec": None if position[1] is None else round(position[1], 6),
                 },
-                "bh": mount.get_behavior(),
-                "is_running": mount.get_running(),
+                "bh": getattr(mount, "get_behavior", lambda: None)(),
+                "is_running": getattr(mount, "get_running", lambda: False)(),
             }
         ),
         200,
