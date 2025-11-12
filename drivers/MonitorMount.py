@@ -3,15 +3,15 @@ import socket
 import threading
 import drivers.is_rpi
 from classes.Mount import Mount
-from flask import Flask, request, jsonify, render_template_string
 
+# Conditional imports for Raspberry Pi hardware
 if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
     from adafruit_pca9685 import PCA9685
     from board import SCL, SDA
     import busio
 
-
+# Singleton hardware controller (PCA9685 shared instance)
 class Singleton:
     _instance = None
 
@@ -40,23 +40,17 @@ class Singleton:
         else:
             print("Running on non-Raspberry environment (mock mode).")
 
-
+# MonitorMount class (NO internal Flask server)
 class MonitorMount(Mount):
     def __init__(self):
         super().__init__()
 
-        freq_hz = 100
-
-        # Basic configuration
-        self.FREQUENCY_HZ = freq_hz
-        self.PERIOD_US = 1_000_000 / freq_hz
+        self.FREQUENCY_HZ = 100
+        self.PERIOD_US = 1_000_000 / self.FREQUENCY_HZ
         self.CHANNELS = [0, 1]
-        self.HOST = "0.0.0.0"
-        self.PORT = 5000
-        self.app = Flask(__name__)
         self.__running = False
 
-        # PCA9685 via Singleton
+        # Hardware initialization
         self.hw = Singleton()
         self.pca = self.hw.pca
 
@@ -65,12 +59,7 @@ class MonitorMount(Mount):
         else:
             print("PCA9685 unavailable (mock mode).")
 
-        # Register API routes
-        self.register_routes()
-
-    # ====================================================
-    # Utility
-    # ====================================================
+    # Servo Control
     def move_servo(self, channel, angle):
         """Moves a servo with linear conversion 0–180°"""
         try:
@@ -82,6 +71,19 @@ class MonitorMount(Mount):
             duty = int(pulse_us / self.PERIOD_US * 65535)
             self.pca.channels[channel].duty_cycle = duty
             print(f"[SERVO {channel}] angle={angle:.2f} ({pulse_us:.1f} µs)")
+            self.__running = True
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def move_absolute(self, channel, pulse):
+        """Move servo directly by pulse width (µs)"""
+        try:
+            duty = int(pulse / self.PERIOD_US * 65535)
+            if self.pca:
+                self.pca.channels[channel].duty_cycle = duty
+                print(f"[SERVO {channel}] direct impulse {pulse} µs")
+            self.__running = True
             return True, None
         except Exception as e:
             return False, str(e)
@@ -97,6 +99,19 @@ class MonitorMount(Mount):
         except Exception as e:
             print("Error stopping servos:", e)
 
+    def set_frequency(self, freq):
+        """Change PWM frequency"""
+        try:
+            if self.pca:
+                self.pca.frequency = freq
+                self.FREQUENCY_HZ = freq
+                self.PERIOD_US = 1_000_000 / freq
+                print(f"PWM frequency set to {freq} Hz")
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    # Status and Info
     def get_position(self):
         """Returns the current PWM duty (simulated position)"""
         if not self.pca:
@@ -112,115 +127,22 @@ class MonitorMount(Mount):
         """Returns True if the mount is running"""
         return self.__running
 
-    # ====================================================
-    # API ROUTES
-    # ====================================================
-    def register_routes(self):
-        app = self.app
+    def get_info(self):
+        """Returns hardware status and info"""
+        try:
+            host = socket.gethostname()
+            ip = socket.gethostbyname(host)
+            return {
+                "device": host,
+                "ip": ip,
+                "frequency": self.FREQUENCY_HZ,
+                "channels": self.CHANNELS,
+                "pca_initialized": self.pca is not None,
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
-        @app.route("/")
-        def index():
-            try:
-                return render_template_string(self.html_interface())
-            except Exception as e:
-                return f"Interface Error: {e}", 500
-
-        @app.route("/ping")
-        def ping():
-            return jsonify({"ok": True, "message": "pong"})
-
-        @app.route("/move", methods=["GET", "POST"])
-        def move():
-            try:
-                ch = int(request.args.get("ch", request.form.get("ch")))
-                angle = float(request.args.get("angle", request.form.get("angle")))
-                ok, err = self.move_servo(ch, angle)
-                if not ok:
-                    return jsonify({"ok": False, "error": err}), 400
-                self.__running = True
-                return jsonify({"ok": True, "ch": ch, "angle": angle})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
-        @app.route("/move/abs", methods=["POST"])
-        def move_abs():
-            try:
-                ch = int(request.args.get("ch"))
-                pulse = float(request.args.get("pulse"))
-                duty = int(pulse / self.PERIOD_US * 65535)
-                if self.pca:
-                    self.pca.channels[ch].duty_cycle = duty
-                    print(f"[SERVO {ch}] direct impulse {pulse} µs")
-                self.__running = True
-                return jsonify({"ok": True, "ch": ch, "pulse": pulse})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
-        @app.route("/stop", methods=["POST"])
-        def stop_route():
-            try:
-                self.stop()
-                return jsonify({"ok": True, "message": "Servos stopped"})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
-        @app.route("/status", methods=["GET"])
-        def status():
-            try:
-                return jsonify(
-                    {
-                        "running": self.get_running(),
-                        "position": self.get_position(),
-                        "channels": self.CHANNELS,
-                    }
-                )
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
-
-        @app.route("/setfreq", methods=["POST"])
-        def setfreq():
-            try:
-                freq = int(request.args.get("freq"))
-                if self.pca:
-                    self.pca.frequency = freq
-                print(f"PWM frequency set to {freq} Hz")
-                return jsonify({"ok": True, "freq": freq})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
-        @app.route("/info")
-        def info():
-            try:
-                host = socket.gethostname()
-                ip = socket.gethostbyname(host)
-                return jsonify(
-                    {
-                        "ok": True,
-                        "device": host,
-                        "ip": ip,
-                        "frequency": self.FREQUENCY_HZ,
-                        "channels": self.CHANNELS,
-                        "pca_initialized": self.pca is not None,
-                    }
-                )
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
-
-        @app.route("/exec", methods=["POST"])
-        def exec_cmd():
-            try:
-                cmd = request.args.get("cmd")
-                if cmd == "reset":
-                    self.stop()
-                    print("Reset executed.")
-                    return jsonify({"ok": True, "message": "Reset executed"})
-                return jsonify({"ok": False, "error": "Unknown command"})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 400
-
-    # ====================================================
-    # HTML Interface
-    # ====================================================
+    # Optional simple HTML interface 
     def html_interface(self):
         return """
         <!DOCTYPE html>
@@ -249,30 +171,81 @@ class MonitorMount(Mount):
           <script>
             async function send(ch,val){
               document.getElementById("val"+ch).innerText = val + "°";
-              await fetch(`/move?ch=${ch}&angle=${val}`);
+              await fetch(`/hardware/move?ch=${ch}&angle=${val}`);
             }
           </script>
         </body>
         </html>
         """
 
-    # ====================================================
-    # Server start
-    # ====================================================
-    def run_server(self):
-        thread = threading.Thread(
-            target=self.app.run, kwargs={"host": self.HOST, "port": self.PORT}
-        )
-        thread.daemon = True
-        thread.start()
-        print(f"Server started on http://{self.HOST}:{self.PORT}")
 
+    # ====================================================
+    # Implementazioni richieste da Mount (astratta)
+    # ====================================================
 
-# ====================================================
-# Direct execution
-# ====================================================
-if __name__ == "__main__":
-    mount = MonitorMount()
-    mount.run_server()
-    while True:
-        time.sleep(1)
+    #Antonio: posizione geografica (mock base)
+    def set_location(self, location):
+        """Imposta la posizione geografica simulata."""
+        self._location = location
+        print(f"[MonitorMount] Location set: {location}")
+
+    def get_location(self):
+        """Ritorna la posizione impostata (se presente)."""
+        return getattr(self, "_location", None)
+
+    #Antonio: target (coordinata o comando)
+    def set_target(self, alt=None, az=None, ra=None, dec=None):
+        """Imposta il target della montatura (mock)."""
+        self._target = {
+            "alt": alt,
+            "az": az,
+            "ra": ra,
+            "dec": dec
+        }
+        print(f"[MonitorMount] Target set: {self._target}")
+
+    def get_target(self):
+        """Ritorna il target corrente (mock)."""
+        return getattr(self, "_target", None)
+
+    #Antonio: offset assoluto / relativo
+    def set_absolute_offset(self, alt=None, az=None, ra=None, dec=None):
+        self._abs_offset = {
+            "alt": alt,
+            "az": az,
+            "ra": ra,
+            "dec": dec
+        }
+        print(f"[MonitorMount] Absolute offset set: {self._abs_offset}")
+
+    def set_relative_offset(self, alt=None, az=None, ra=None, dec=None):
+        self._rel_offset = {
+            "alt": alt,
+            "az": az,
+            "ra": ra,
+            "dec": dec
+        }
+        print(f"[MonitorMount] Relative offset set: {self._rel_offset}")
+
+    def get_offset(self):
+        """Ritorna l’ultimo offset impostato."""
+        return getattr(self, "_rel_offset", None) or getattr(self, "_abs_offset", None)
+
+    #Antonio: comportamento e stato
+    def get_behavior(self):
+        """Ritorna il comportamento corrente (es. 'follow', 'route'...)"""
+        return getattr(self, "_behavior", None)
+
+    #Antonio: simulazione di esecuzione (mock run)
+    def run(self, bh: str):
+        """Simula il comportamento della montatura (mock)."""
+        import time
+        self._behavior = bh
+        self.__running = True
+        print(f"[MonitorMount] Run started (behavior='{bh}')")
+
+        # simulazione di movimento per 2 secondi
+        time.sleep(2)
+
+        self.__running = False
+        print(f"[MonitorMount] Run finished (behavior='{bh}')")
