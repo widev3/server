@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 app.register_blueprint(session_bp, url_prefix="/session")
 app.register_blueprint(mount_bp, url_prefix="/mount")
-app.register_blueprint(hardware_bp, url_prefix="/hardware")
+#app.register_blueprint(hardware_bp, url_prefix="/hardware")
 app.register_blueprint(hwcontroller_bp, url_prefix="/hwcontroller")
 
 
