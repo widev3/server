@@ -4,14 +4,17 @@ import threading
 import drivers.is_rpi
 from classes.Mount import Mount
 
-# Conditional imports for Raspberry Pi hardware
+#  Hardware Detect (Raspberry Pi o Mock mode)
 if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
     from adafruit_pca9685 import PCA9685
     from board import SCL, SDA
     import busio
 
-# Singleton hardware controller (PCA9685 shared instance)
+
+# =====================================================
+#  ✅ Singleton PCA9685 — una sola istanza per sessione
+# =====================================================
 class Singleton:
     _instance = None
 
@@ -21,10 +24,9 @@ class Singleton:
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, "_initialized") and self._initialized:
+        if getattr(self, "_initialized", False):
             return
         self._initialized = True
-
         self.pca = None
 
         if drivers.is_rpi.is_rpi():
@@ -34,13 +36,14 @@ class Singleton:
                 i2c = busio.I2C(SCL, SDA)
                 self.pca = PCA9685(i2c)
                 self.pca.frequency = 100
-                print("PCA9685 initialized by Singleton @100Hz")
+                print("[Singleton] PCA9685 initialized @100Hz")
             except Exception as e:
-                print("Error initializing PCA9685 in Singleton:", e)
+                print("[Singleton] Error initializing PCA9685:", e)
         else:
-            print("Running on non-Raspberry environment (mock mode).")
+            print("[Singleton] Mock mode (non-Raspberry environment).")
 
-# MonitorMount class (NO internal Flask server)
+
+# MonitorMount (implementazione di Mount)
 class MonitorMount(Mount):
     def __init__(self):
         super().__init__()
@@ -50,16 +53,16 @@ class MonitorMount(Mount):
         self.CHANNELS = [0, 1]
         self.__running = False
 
-        # Hardware initialization
+        # Hardware Singleton
         self.hw = Singleton()
         self.pca = self.hw.pca
 
         if self.pca:
-            print("PCA9685 ready in MonitorMount.")
+            print("[MonitorMount] PCA9685 ready.")
         else:
-            print("PCA9685 unavailable (mock mode).")
+            print("[MonitorMount] PCA9685 unavailable (mock mode).")
 
-    # Servo Control
+    #  Servo Control
     def move_servo(self, channel, angle):
         """Moves a servo with linear conversion 0–180°"""
         try:
@@ -67,22 +70,23 @@ class MonitorMount(Mount):
                 return False, "PCA9685 not initialized"
 
             pulse_min, pulse_max = 500, 2500  # microseconds
-            pulse_us = pulse_min + (pulse_max - pulse_min) * (angle / 180)
+            pulse_us = pulse_min + (pulse_max - pulse_min) * (angle / 180.0)
             duty = int(pulse_us / self.PERIOD_US * 65535)
             self.pca.channels[channel].duty_cycle = duty
-            print(f"[SERVO {channel}] angle={angle:.2f} ({pulse_us:.1f} µs)")
+            print(f"[SERVO {channel}] → {angle:.2f}° ({pulse_us:.0f} µs)")
             self.__running = True
             return True, None
         except Exception as e:
             return False, str(e)
 
     def move_absolute(self, channel, pulse):
-        """Move servo directly by pulse width (µs)"""
+        """Moves servo directly using pulse width (µs)"""
         try:
+            if not self.pca:
+                return False, "PCA9685 not initialized"
             duty = int(pulse / self.PERIOD_US * 65535)
-            if self.pca:
-                self.pca.channels[channel].duty_cycle = duty
-                print(f"[SERVO {channel}] direct impulse {pulse} µs")
+            self.pca.channels[channel].duty_cycle = duty
+            print(f"[SERVO {channel}] direct impulse {pulse} µs")
             self.__running = True
             return True, None
         except Exception as e:
@@ -95,40 +99,40 @@ class MonitorMount(Mount):
                 for ch in self.CHANNELS:
                     self.pca.channels[ch].duty_cycle = 0
             self.__running = False
-            print("Servos stopped.")
+            print("[MonitorMount] Servos stopped.")
         except Exception as e:
-            print("Error stopping servos:", e)
+            print("[MonitorMount] Error stopping servos:", e)
 
     def set_frequency(self, freq):
-        """Change PWM frequency"""
+        """Changes PWM frequency"""
         try:
             if self.pca:
                 self.pca.frequency = freq
                 self.FREQUENCY_HZ = freq
                 self.PERIOD_US = 1_000_000 / freq
-                print(f"PWM frequency set to {freq} Hz")
+                print(f"[MonitorMount] PWM frequency set to {freq} Hz")
             return True, None
         except Exception as e:
             return False, str(e)
 
-    # Status and Info
+    #  Status and Info
     def get_position(self):
-        """Returns the current PWM duty (simulated position)"""
+        """Returns current PWM duty (simulated position)"""
         if not self.pca:
             return None
         try:
             positions = {ch: self.pca.channels[ch].duty_cycle for ch in self.CHANNELS}
             return positions
         except Exception as e:
-            print("Error reading servo positions:", e)
+            print("[MonitorMount] Error reading servo positions:", e)
             return None
 
     def get_running(self):
-        """Returns True if the mount is running"""
+        """Returns True if running"""
         return self.__running
 
     def get_info(self):
-        """Returns hardware status and info"""
+        """Returns device and PCA9685 info"""
         try:
             host = socket.gethostname()
             ip = socket.gethostbyname(host)
@@ -142,7 +146,7 @@ class MonitorMount(Mount):
         except Exception as e:
             return {"error": str(e)}
 
-    # Optional simple HTML interface 
+    #  HTML Web Interface (manual control)
     def html_interface(self):
         return """
         <!DOCTYPE html>
@@ -150,10 +154,10 @@ class MonitorMount(Mount):
         <head>
           <title>MonitorMount Servo Control</title>
           <style>
-            body { font-family: sans-serif; background:#111; color:#eee; text-align:center; margin-top:40px; }
+            body { font-family:sans-serif; background:#111; color:#eee; text-align:center; margin-top:40px; }
             h1 { color:#6cf; }
-            input[type=range] { width: 400px; }
-            .servo { margin: 30px; }
+            input[type=range] { width:400px; }
+            .servo { margin:30px; }
           </style>
         </head>
         <body>
@@ -178,73 +182,50 @@ class MonitorMount(Mount):
         </html>
         """
 
-
-    # ====================================================
-    # Implementazioni richieste da Mount (astratta)
-    # ====================================================
-
-    #Antonio: posizione geografica (mock base)
+    #  Implementations for Mount (abstract)
     def set_location(self, location):
-        """Imposta la posizione geografica simulata."""
+        """Imposta la posizione geografica simulata"""
         self._location = location
         print(f"[MonitorMount] Location set: {location}")
 
     def get_location(self):
-        """Ritorna la posizione impostata (se presente)."""
+        """Ritorna la posizione impostata"""
         return getattr(self, "_location", None)
 
-    #Antonio: target (coordinata o comando)
     def set_target(self, alt=None, az=None, ra=None, dec=None):
-        """Imposta il target della montatura (mock)."""
-        self._target = {
-            "alt": alt,
-            "az": az,
-            "ra": ra,
-            "dec": dec
-        }
+        """Imposta il target"""
+        self._target = {"alt": alt, "az": az, "ra": ra, "dec": dec}
         print(f"[MonitorMount] Target set: {self._target}")
 
     def get_target(self):
-        """Ritorna il target corrente (mock)."""
+        """Ritorna il target corrente"""
         return getattr(self, "_target", None)
 
-    #Antonio: offset assoluto / relativo
     def set_absolute_offset(self, alt=None, az=None, ra=None, dec=None):
-        self._abs_offset = {
-            "alt": alt,
-            "az": az,
-            "ra": ra,
-            "dec": dec
-        }
+        """Offset assoluto"""
+        self._abs_offset = {"alt": alt, "az": az, "ra": ra, "dec": dec}
         print(f"[MonitorMount] Absolute offset set: {self._abs_offset}")
 
     def set_relative_offset(self, alt=None, az=None, ra=None, dec=None):
-        self._rel_offset = {
-            "alt": alt,
-            "az": az,
-            "ra": ra,
-            "dec": dec
-        }
+        """Offset relativo"""
+        self._rel_offset = {"alt": alt, "az": az, "ra": ra, "dec": dec}
         print(f"[MonitorMount] Relative offset set: {self._rel_offset}")
 
     def get_offset(self):
-        """Ritorna l’ultimo offset impostato."""
+        """Ritorna offset attuale"""
         return getattr(self, "_rel_offset", None) or getattr(self, "_abs_offset", None)
 
-    #Antonio: comportamento e stato
     def get_behavior(self):
-        """Ritorna il comportamento corrente (es. 'follow', 'route'...)"""
+        """Comportamento corrente (follow, route...)"""
         return getattr(self, "_behavior", None)
 
-    #Antonio: simulazione di esecuzione (mock run)
     def run(self, bh: str):
-        """Simula il comportamento della montatura (mock)."""
-        import time
+        """Simula un comportamento"""
         self._behavior = bh
         self.__running = True
         print(f"[MonitorMount] Run started (behavior='{bh}')")
 
-        # simulazione di movimento per 2 secondi
+        # Simulazione movimento 2 secondi
         time.sleep(2)
 
         self.__running = False

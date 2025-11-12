@@ -4,13 +4,6 @@ from drivers.MonitorMount import MonitorMount
 hwcontroller_bp = Blueprint("hwcontroller", __name__)
 mount = MonitorMount()
 
-@hwcontroller_bp.route("/init", methods=["POST"])
-def init_hardware():
-    ok, err = mount.init_hardware() if hasattr(mount, "init_hardware") else (False, "init_hardware() not found")
-    if not ok:
-        return jsonify({"ok": False, "error": err}), 500
-    return jsonify({"ok": True, "message": "PCA9685 initialized"})
-
 @hwcontroller_bp.route("/move", methods=["POST"])
 def move_servo():
     ch = int(request.args.get("ch", 0))
