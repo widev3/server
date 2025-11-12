@@ -9,6 +9,11 @@ from drivers.MonitorMount import MonitorMount
 
 mount_bp = Blueprint(Path(__file__).stem, __name__)
 
+# Antonio: inizializza i globali per evitare NameError
+mount = None
+MOUNT_TYPE = None
+
+
 # global mount
 # mount = WOWMount()
 
