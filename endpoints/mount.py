@@ -21,32 +21,6 @@ def is_float(value: str) -> bool:
     except:
         return False
 
-
-@mount_bp.route("/config/mounttype", methods=["POST"])
-def set_mount_type():
-    global mount, MOUNT_TYPE
-
-    data = request.get_json()
-    if not data or "type" not in data:
-        return jsonify({"error": "missing required field 'type'"}), 400
-
-    mtype = data["type"].lower()
-    if mtype not in ["wow", "monitor"]:
-        return jsonify({"error": "type must be 'wow' or 'monitor'"}), 400
-
-    # Antonio: controllo mount solo se già inizializzato
-    if mount is not None and mount.get_running():
-        return jsonify({"error": "cannot switch while moving"}), 403
-
-    MOUNT_TYPE = mtype
-    if mtype == "monitor":
-        mount = MonitorMount()
-    else:
-        mount = RadiotelescopeMount()
-
-    return jsonify({"message": f"mount type switched to {mtype}"}), 200
-
-
 @mount_bp.route("/location", methods=["POST"])
 def mount_location():
     global mount
