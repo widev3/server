@@ -1,5 +1,4 @@
 
-#from drivers.WOWMount import WOWMount
 from drivers.MonitorMount import MonitorMount
 from drivers.RadiotelescopeMount import RadiotelescopeMount
 
@@ -40,8 +39,7 @@ class DeviceInfo:
 
     @staticmethod
     def get_identifier():
-        #Return a string in thr format: serial_PiX_revision
-        #esempio: 10000000abcdef_Pi4_1.4
+        #Return a string in thr format: serial_PiX_revision - example: 10000000abcdef_Pi4_1.4
         serial = DeviceInfo.get_serial()
         raw = DeviceInfo.get_model_raw()
 
@@ -56,11 +54,11 @@ class DeviceInfo:
         if not device_id or "_" not in device_id:
             return RadiotelescopeMount()   # fallback
 
-        # device_id = serial_Pi4_1.4
+        # device_id (example: serial_Pi4_1.4)
         parts = device_id.split("_")
-        model = parts[1]   # esempio "Pi4"
+        model = parts[1]   # "Pi4"
 
-        # logic - eaxmple [define]
+        # logic - example [define]. It will read from online db where we can assign the real final mount type.
         if model in ["Pi4", "Pi5"]:
             return RadiotelescopeMount()
 
