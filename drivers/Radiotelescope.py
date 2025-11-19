@@ -1,8 +1,8 @@
 import math
 import smbus2
 import numpy as np
-from time import sleep
 import drivers.is_rpi
+from time import sleep
 
 if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
@@ -71,7 +71,7 @@ class Singleton:
             )
 
 
-class RadiotelescopeMount(Mount):
+class Radiotelescope(Mount):
     def __init__(self):
         self.__location = None
         self.__target = None  # it is always in icrs

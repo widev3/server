@@ -1,16 +1,15 @@
 import math
+import os.path
 import threading
 from pathlib import Path
 from astropy import units
+from drivers.Monitor import Monitor
+from SessionProperties import SessionProperties as SP
 from flask import request, jsonify, Blueprint
 from astropy.coordinates import EarthLocation
-from drivers.RadiotelescopeMount import RadiotelescopeMount
-from drivers.MonitorMount import MonitorMount
+from drivers.Radiotelescope import Radiotelescope
 
 mount_bp = Blueprint(Path(__file__).stem, __name__)
-
-mount = None
-MOUNT_TYPE = None
 
 
 def is_float(value: str) -> bool:
@@ -21,12 +20,15 @@ def is_float(value: str) -> bool:
         return False
 
 
+@mount_bp.before_request
+def mount_bp_before_request():
+    if SP().MOUNT is None:
+        return jsonify({"error": "unknown hardware type for the mount"}), 400
+
+
 @mount_bp.route("/location", methods=["POST"])
 def mount_location():
-    global mount
-    if mount is None:
-        return jsonify({"error": "mount not initialized"}), 400
-    if mount.get_running():
+    if SP().MOUNT.get_running():
         return jsonify({"error": "already moving"}), 403
 
     data = request.get_json()
@@ -48,16 +50,13 @@ def mount_location():
     lon = lon * units.deg if is_float(lon) else lon
     height = height * units.m if is_float(height) else height
 
-    mount.set_location(EarthLocation(lat=lat, lon=lon, height=height))
+    SP().MOUNT.set_location(EarthLocation(lat=lat, lon=lon, height=height))
     return jsonify({"message": "ok"}), 200
 
 
 @mount_bp.route("/target", methods=["POST"])
 def mount_target():
-    global mount
-    if mount is None:
-        return jsonify({"error": "mount not initialized"}), 400
-    if mount.get_running():
+    if SP().MOUNT.get_running():
         return jsonify({"error": "already moving"}), 403
 
     data = request.get_json()
@@ -80,17 +79,17 @@ def mount_target():
         az = data["az"]
         alt = alt * units.deg if is_float(alt) else alt
         az = az * units.deg if is_float(az) else az
-        mount.set_target(alt=alt, az=az)
+        SP().MOUNT.set_target(alt=alt, az=az)
     elif "ra" in data:
         ra = data["ra"]
         dec = data["dec"]
         ra = ra * units.deg if is_float(ra) else ra
         dec = dec * units.deg if is_float(dec) else dec
-        mount.set_target(ra=ra, dec=dec)
+        SP().MOUNT.set_target(ra=ra, dec=dec)
     else:
         return jsonify({"error": "neither ra/dec nor alt/az"}), 400
 
-    target = mount.get_target()
+    target = SP().MOUNT.get_target()
     return (
         jsonify(
             {
@@ -107,10 +106,7 @@ def mount_target():
 
 @mount_bp.route("/offset", methods=["POST"])
 def mount_offset():
-    global mount
-    if mount is None:
-        return jsonify({"error": "mount not initialized"}), 400
-    if mount.get_running():
+    if SP().MOUNT.get_running():
         return jsonify({"error": "already moving"}), 403
 
     data = request.get_json()
@@ -120,23 +116,23 @@ def mount_offset():
     if "absolute" in data:
         absolute = data["absolute"]
         if "ra" in absolute:
-            mount.set_absolute_offset(ra=absolute["ra"])
+            SP().MOUNT.set_absolute_offset(ra=absolute["ra"])
         if "dec" in absolute:
-            mount.set_absolute_offset(dec=absolute["dec"])
+            SP().MOUNT.set_absolute_offset(dec=absolute["dec"])
         if "alt" in absolute:
-            mount.set_absolute_offset(alt=absolute["alt"])
+            SP().MOUNT.set_absolute_offset(alt=absolute["alt"])
         if "az" in absolute:
-            mount.set_absolute_offset(az=absolute["az"])
+            SP().MOUNT.set_absolute_offset(az=absolute["az"])
     elif "relative" in data:
         relative = data["relative"]
         if "ra" in relative:
-            mount.set_relative_offset(ra=relative["ra"])
+            SP().MOUNT.set_relative_offset(ra=relative["ra"])
         if "dec" in relative:
-            mount.set_relative_offset(dec=relative["dec"])
+            SP().MOUNT.set_relative_offset(dec=relative["dec"])
         if "alt" in relative:
-            mount.set_relative_offset(alt=relative["alt"])
+            SP().MOUNT.set_relative_offset(alt=relative["alt"])
         if "az" in relative:
-            mount.set_relative_offset(az=relative["az"])
+            SP().MOUNT.set_relative_offset(az=relative["az"])
     elif "timedelta" in data:
         timedelta = data["timedelta"]
         ra_g = int(15 * timedelta / 3600)
@@ -145,11 +141,11 @@ def mount_offset():
         timedelta -= ra_m * 60
         ra_s = timedelta
         ra = ra_g + ra_m / 60 + ra_s / 3600
-        mount.set_relative_offset(ra=ra * units.deg)
+        SP().MOUNT.set_relative_offset(ra=ra * units.deg)
     else:
         return jsonify({"error": "'absolute', 'relative' or 'timedelta'"}), 400
 
-    offset = mount.get_offset()
+    offset = SP().MOUNT.get_offset()
     return (
         jsonify(
             {
@@ -166,14 +162,11 @@ def mount_offset():
 
 @mount_bp.route("/run", methods=["GET"])
 def mount_run():
-    global mount
-    if mount is None:
-        return jsonify({"error": "mount not initialized"}), 400
-    if mount.get_running():
+    if SP().MOUNT.get_running():
         return jsonify({"error": "already moving"}), 403
-    if mount.get_location() is None:
+    if SP().MOUNT.get_location() is None:
         return jsonify({"error": "mount location is not set"}), 400
-    if not mount.get_target():
+    if not SP().MOUNT.get_target():
         return jsonify({"error": "mount target is not set"}), 400
 
     bh = request.args.get("bh")
@@ -181,10 +174,10 @@ def mount_run():
         return jsonify({"error": "missing required argument bh"}), 400
     if bh not in ["follow", "transit", "route"]:
         return jsonify({"error": "bh must be 'follow', 'transit' or 'route'"}), 400
-    if bh in ["transit", "route"] and not mount.get_offset():
+    if bh in ["transit", "route"] and not SP().MOUNT.get_offset():
         return jsonify({"error": f"mount offset must be set when bh is {bh}"}), 400
 
-    thread = threading.Thread(target=lambda: mount.run(bh))
+    thread = threading.Thread(target=lambda: SP().MOUNT.run(bh))
     thread.start()
 
     return jsonify({"message": "ok"}), 200
@@ -192,26 +185,22 @@ def mount_run():
 
 @mount_bp.route("/stop", methods=["GET"])
 def mount_stop():
-    global mount
-    if mount is None:
-        return jsonify({"error": "mount not initialized"}), 400
-    if not mount.get_running():
+    if not SP().MOUNT.get_running():
         return jsonify({"error": "already stopped"}), 403
 
-    mount.stop()
+    SP().MOUNT.stop()
     return jsonify({"message": "ok"}), 200
 
 
 @mount_bp.route("/status", methods=["GET"])
 def mount_status():
-    global mount
-    if not mount:
+    if not SP().MOUNT:
         return jsonify({"error": "mount not initialized"}), 400
 
-    position = mount.get_position() or (None, None)
-    offset = mount.get_offset() or type("Obj", (), {"ra": None, "dec": None})()
-    target = mount.get_target() or type("Obj", (), {"ra": None, "dec": None})()
-    location = mount.get_location()
+    position = SP().MOUNT.get_position() or (None, None)
+    offset = SP().MOUNT.get_offset() or type("Obj", (), {"ra": None, "dec": None})()
+    target = SP().MOUNT.get_target() or type("Obj", (), {"ra": None, "dec": None})()
+    location = SP().MOUNT.get_location()
 
     return (
         jsonify(
@@ -229,8 +218,8 @@ def mount_status():
                     "ra": None if position[0] is None else round(position[0], 6),
                     "dec": None if position[1] is None else round(position[1], 6),
                 },
-                "bh": getattr(mount, "get_behavior", lambda: None)(),
-                "is_running": getattr(mount, "get_running", lambda: False)(),
+                "bh": getattr(SP().MOUNT, "get_behavior", lambda: None)(),
+                "is_running": getattr(SP().MOUNT, "get_running", lambda: False)(),
             }
         ),
         200,

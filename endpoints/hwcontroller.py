@@ -1,9 +1,9 @@
 from pathlib import Path
 from flask import jsonify, request, Blueprint
-from drivers.MonitorMount import MonitorMount
+from drivers.Monitor import Monitor
 
 hwcontroller_bp = Blueprint(Path(__file__).stem, __name__)
-mount = MonitorMount()
+mount = Monitor()
 
 
 @hwcontroller_bp.route("/move", methods=["POST"])

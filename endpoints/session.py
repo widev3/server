@@ -1,31 +1,26 @@
 import uuid
 from pathlib import Path
 from flask import jsonify, Blueprint
-from SingletonSID import SingletonSID
-from classes.DeviceInfo import DeviceInfo
+from SessionProperties import SessionProperties as SP
 
 session_bp = Blueprint(Path(__file__).stem, __name__)
 
 
 @session_bp.route("/acquire", methods=["GET"])
 def session_acquire():
-    if not SingletonSID().SID:
-        SingletonSID().SID = uuid.uuid4()
-
-        device_id = DeviceInfo.get_identifier()  # get device hardware info
-        SingletonSID().DEVICE_ID = device_id  # save info
-        mount = DeviceInfo.select_mount(device_id)  # select the type
+    if not SP().SID:
+        SP().SID = uuid.uuid4()
 
         print(
-            f"[SESSION] Nuova sessione: SID={SingletonSID().SID} DEVICE={device_id} MOUNT={mount.__class__.__name__}"
+            f"[SESSION] Nuova sessione: SID={SP().SID} DEVICE={SP().DEVICE_ID} MOUNT={SP().MOUNT}"
         )
 
         return (
             jsonify(
                 {
-                    "session_id": str(SingletonSID().SID),
-                    "device_id": device_id,
-                    "mount_type": mount.__class__.__name__,
+                    "session_id": str(SP().SID),
+                    "device_id": SP().DEVICE_ID,
+                    "mount_type": SP().MOUNT,
                 }
             ),
             200,
@@ -36,9 +31,9 @@ def session_acquire():
 
 @session_bp.route("/release", methods=["GET"])
 def session_release():
-    if SingletonSID().SID:
-        SingletonSID().SID = None
-        SingletonSID().DEVICE_ID = None  # reset
+    if SP().SID:
+        SP().SID = None
+        SP().DEVICE_ID = None
         return jsonify({"message": "ok"}), 200
 
     return jsonify({"message": "cannot release an empty session"}), 403
@@ -46,8 +41,8 @@ def session_release():
 
 @session_bp.route("/info", methods=["GET"])
 def session_info():
-    sid = SingletonSID().SID
-    device = SingletonSID().DEVICE_ID
+    sid = SP().SID
+    device = SP().DEVICE_ID
 
     if not sid:
         return jsonify({"session_id": None, "device_id": None, "status": "empty"}), 200

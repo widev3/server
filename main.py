@@ -3,10 +3,14 @@ import sys
 sys.dont_write_bytecode = True
 
 from endpoints.mount import mount_bp
-from SingletonSID import SingletonSID
 from endpoints.session import session_bp
+from classes.DeviceInfo import DeviceInfo
 from flask import Flask, request, jsonify
+from SessionProperties import SessionProperties as SP
 from endpoints.hwcontroller import hwcontroller_bp
+
+SP().DEVICE_ID = DeviceInfo.get_identifier()
+SP().MOUNT = DeviceInfo.select_mount()
 
 app = Flask(__name__)
 
@@ -16,11 +20,11 @@ app.register_blueprint(hwcontroller_bp, url_prefix="/hwcontroller")
 
 
 @app.before_request
-def middleware():
+def app_before_request():
     token = request.headers.get("Authorization")
-    if token and SingletonSID().SID and token != str(SingletonSID().SID):
+    if token and SP().SID and token != str(SP().SID):
         return jsonify({"error": "session already acquired"}), 401
-    if token and not SingletonSID().SID:
+    if token and not SP().SID:
         return jsonify({"error": "no active session"}), 401
     if not token and request.path != "/session/acquire":
         return jsonify({"error": "unauthorized"}), 401

@@ -1,10 +1,8 @@
 import time
 import socket
-import threading
 import drivers.is_rpi
 from classes.Mount import Mount
 
-#  Hardware Detect (Raspberry Pi o Mock mode)
 if drivers.is_rpi.is_rpi():
     import RPi.GPIO as GPIO
     from adafruit_pca9685 import PCA9685
@@ -12,7 +10,6 @@ if drivers.is_rpi.is_rpi():
     import busio
 
 
-#  Singleton PCA9685 — one istance / session
 class Singleton:
     _instance = None
 
@@ -41,8 +38,7 @@ class Singleton:
             print("[Singleton] Mock mode (non-Raspberry environment).")
 
 
-# MonitorMount (implementazione di Mount)
-class MonitorMount(Mount):
+class Monitor(Mount):
     def __init__(self):
         super().__init__()
 
@@ -51,7 +47,6 @@ class MonitorMount(Mount):
         self.CHANNELS = [0, 1]
         self.__running = False
 
-        # Hardware Singleton
         self.hw = Singleton()
         self.pca = self.hw.pca
 
@@ -60,7 +55,6 @@ class MonitorMount(Mount):
         else:
             print("[MonitorMount] PCA9685 unavailable (mock mode).")
 
-    #  Servo Control
     def move_servo(self, channel, angle):
         """Moves a servo with linear conversion 0–180°"""
         try:
