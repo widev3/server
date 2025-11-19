@@ -1,7 +1,7 @@
 class SingletonSID:
     _instance = None
-    SID = None          # Antonio
-    DEVICE_ID = None    # Antonio
+    SID = None
+    DEVICE_ID = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -15,7 +15,7 @@ class SingletonSID:
 
         self._initialized = True
         self.SID = None
-        self.DEVICE_ID = None       # Antonio
+        self.DEVICE_ID = None
 
     def set_SID(self, sid):
         self.SID = sid

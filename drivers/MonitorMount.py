@@ -11,6 +11,7 @@ if drivers.is_rpi.is_rpi():
     from board import SCL, SDA
     import busio
 
+
 #  Singleton PCA9685 — one istance / session
 class Singleton:
     _instance = None

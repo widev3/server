@@ -9,7 +9,6 @@ from drivers.MonitorMount import MonitorMount
 
 mount_bp = Blueprint(Path(__file__).stem, __name__)
 
-# Antonio: inizializza i globali per evitare NameError e NoneType
 mount = None
 MOUNT_TYPE = None
 
@@ -20,6 +19,7 @@ def is_float(value: str) -> bool:
         return math.isfinite(f)
     except:
         return False
+
 
 @mount_bp.route("/location", methods=["POST"])
 def mount_location():
@@ -218,20 +218,12 @@ def mount_status():
             {
                 "location": location,
                 "target": {
-                    "ra": (
-                        None if target.ra is None else round(target.ra.deg, 6)
-                    ),
-                    "dec": (
-                        None if target.dec is None else round(target.dec.deg, 6)
-                    ),
+                    "ra": (None if target.ra is None else round(target.ra.deg, 6)),
+                    "dec": (None if target.dec is None else round(target.dec.deg, 6)),
                 },
                 "offset": {
-                    "ra": (
-                        None if offset.ra is None else round(offset.ra.deg, 6)
-                    ),
-                    "dec": (
-                        None if offset.dec is None else round(offset.dec.deg, 6)
-                    ),
+                    "ra": (None if offset.ra is None else round(offset.ra.deg, 6)),
+                    "dec": (None if offset.dec is None else round(offset.dec.deg, 6)),
                 },
                 "position": {
                     "ra": None if position[0] is None else round(position[0], 6),

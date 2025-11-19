@@ -2,15 +2,16 @@ import os
 import threading
 from datetime import datetime
 
+
 class Logging:
     _folder = "logs"
     _lock = threading.Lock()
 
     @staticmethod
     def log(message: str):
-        os.makedirs(Logging._folder, exist_ok=True)                 # ensure folder exists
+        os.makedirs(Logging._folder, exist_ok=True)  # ensure folder exists
 
-        filename = datetime.now().strftime("%Y%m%d") + ".txt"       # daily file name
+        filename = datetime.now().strftime("%Y%m%d") + ".txt"  # daily file name
         path = os.path.join(Logging._folder, filename)
 
         now = datetime.now()
