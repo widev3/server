@@ -17,7 +17,7 @@ The session endpoint is used to acquire or release the session since only one se
 #### example
 
 ```bash
-sid="$(curl -X GET http://$server:5000/session/acquire | jq -r '.session_id')"
+sid="$(curl -X GET http://$server:56361/session/acquire | jq -r '.session_id')"
 echo $sid
 ```
 
@@ -31,7 +31,7 @@ echo $sid
 #### example
 
 ```bash
-curl -X GET http://$server:5000/session/release \
+curl -X GET http://$server:56361/session/release \
      -H "Authorization: $sid"
 ```
 
@@ -66,7 +66,7 @@ The route endpoint is used to move and manage everything related to the mechanic
 #### example
 
 ```bash
-curl -X POST http://$server:5000/mount/location \
+curl -X POST http://$server:56361/mount/location \
      -H "Content-Type: application/json" \
      -H "Authorization: $sid" \
      -d '{"lat": 17.546, "lon": 15.786, "height": 12}'
@@ -102,7 +102,7 @@ curl -X POST http://$server:5000/mount/location \
 #### example
 
 ```bash
-curl -X POST http://$server:5000/mount/target \
+curl -X POST http://$server:56361/mount/target \
      -H "Content-Type: application/json" \
      -H "Authorization: $sid" \
      -d '{"az":"181d33m","alt":"11d19m"}'
@@ -138,7 +138,7 @@ curl -X POST http://$server:5000/mount/target \
 #### example
 
 ```bash
-curl -X POST http://$server:5000/mount/offset \
+curl -X POST http://$server:56361/mount/offset \
      -H "Content-Type: application/json" \
      -H "Authorization: $sid" \
      -d '{"absolute": {"ra":"18h33m","dec":"11d19m"}}'
@@ -164,7 +164,7 @@ curl -X POST http://$server:5000/mount/offset \
 #### example
 
 ```bash
-curl -X POST http://$server:5000/mount/run?bh=follow \
+curl -X POST http://$server:56361/mount/run?bh=follow \
      -H "Content-Type: application/json" \
      -H "Authorization: $sid" \
      -d '{"az":"181d33m","alt":"11d19m"}'
@@ -182,7 +182,7 @@ curl -X POST http://$server:5000/mount/run?bh=follow \
 #### example
 
 ```bash
-curl -X GET http://$server:5000/mount/stop \
+curl -X GET http://$server:56361/mount/stop \
      -H "Authorization: $sid"
 ```
 
@@ -216,7 +216,7 @@ curl -X GET http://$server:5000/mount/stop \
 #### example
 
 ```bash
-curl -X GET http://$server:5000/mount/status \
+curl -X GET http://$server:56361/mount/status \
      -H "Authorization: $sid"
 ```
 

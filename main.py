@@ -3,17 +3,15 @@ import sys
 sys.dont_write_bytecode = True
 
 from endpoints.mount import mount_bp
-from endpoints.session import session_bp
-# from endpoints.hardware import hardware_bp
-from endpoints.hwcontroller import hwcontroller_bp
 from SingletonSID import SingletonSID
+from endpoints.session import session_bp
 from flask import Flask, request, jsonify
+from endpoints.hwcontroller import hwcontroller_bp
 
 app = Flask(__name__)
 
 app.register_blueprint(session_bp, url_prefix="/session")
 app.register_blueprint(mount_bp, url_prefix="/mount")
-# app.register_blueprint(hardware_bp, url_prefix="/hardware")
 app.register_blueprint(hwcontroller_bp, url_prefix="/hwcontroller")
 
 
@@ -29,4 +27,4 @@ def middleware():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="5000", debug=True)
+    app.run(host="0.0.0.0", port="56361", debug=True)
