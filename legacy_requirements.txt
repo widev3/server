@@ -2,4 +2,4 @@ Flask
 astropy[all]
 gpiozero
 smbus2
-lgpio
+# lgpio # this is not legacy for raspberry
