@@ -234,6 +234,7 @@ Every API call must pass through a middleware to check the sender's trustworthin
 ## setup
 
 ```bash
+sudo apt install python3-pip -y
 python3 -m venv ubu
 source ubu/bin/activate
 pip3 install -r requirements.txt
